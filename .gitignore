@@ -1,0 +1,14 @@
+# Secretos
+.env
+
+# Entorno / caches de Python
+.venv/
+__pycache__/
+*.pyc
+.ipynb_checkpoints/
+
+# Base de datos vectorial local (se regenera indexando docs/)
+chroma_langchain_db/
+
+# Metadatos de Windows al copiar archivos en WSL
+*:Zone.Identifier
