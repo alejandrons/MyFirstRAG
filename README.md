@@ -1,6 +1,8 @@
 # 📚 myFirstRAG
 
-Proyecto educativo para aprender a construir un sistema **RAG (Retrieval Augmented Generation)** con **LangChain**, una base de datos vectorial **ChromaDB** y una interfaz gráfica en **Streamlit**.
+Proyecto educativo para aprender a construir un sistema **RAG (Retrieval Augmented Generation)** con **LangChain**, una base de datos vectorial **ChromaDB** y una interfaz gráfica en **Streamlit** junto al manejo de arquitectura limpia de construcción de software.
+
+La implementación de un sistema RAG no es nueva dentro de la comunidad de la inteligencia artificial, sin embargo, este repositorio es el resultado del aprendizaje de la implementación de este sistema usando el framework **LangChain** con miras a un ajuste rápido hacia un entorno productivo.
 
 Desde la UI puedes:
 

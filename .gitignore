@@ -9,6 +9,7 @@ __pycache__/
 
 # Base de datos vectorial local (se regenera indexando docs/)
 chroma_langchain_db/
+docs/
 
 # Metadatos de Windows al copiar archivos en WSL
 *:Zone.Identifier
