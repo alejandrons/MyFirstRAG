@@ -7,6 +7,7 @@ Desde la UI puedes:
 - **Agregar documentos** (PDF, TXT, MD) a la base de conocimiento.
 - **Listar y eliminar** los documentos que hay en la base vectorial.
 - **Hacer preguntas** a un agente que busca en los documentos y responde citando las fuentes.
+- **Cambiar de modelo LLM** (OpenAI, Anthropic, Google o cualquier `proveedor:modelo`) y **probar la conexión** antes de preguntar.
 
 ---
 
@@ -99,7 +100,7 @@ Las flechas van en **un solo sentido**. Esto permite:
 | Usar FastAPI o una CLI en vez de Streamlit | `ui/`                                |
 | Cambiar Chroma por FAISS / PGVector     | `database/vector_store.py`              |
 | Usar embeddings de Google u Ollama      | `core/embeddings.py`                    |
-| Usar Claude, Gemini u otro LLM          | `CHAT_MODEL` en `.env`                  |
+| Usar Claude, Gemini u otro LLM          | Selector de la UI o `CHAT_MODEL` en `.env` |
 | Soportar Word o HTML                    | `core/loaders.py`                       |
 
 ---
@@ -130,11 +131,17 @@ Todas las opciones están en `src/myfirstrag/config.py` y se pueden sobrescribir
 
 | Variable | Por defecto | Efecto |
 | --- | --- | --- |
-| `CHAT_MODEL` | `openai:gpt-5-mini` | LLM del agente (`proveedor:modelo`) |
+| `CHAT_MODEL` | `openai:gpt-5-mini` | LLM por defecto del agente (`proveedor:modelo`); se puede cambiar desde la UI |
 | `EMBEDDING_MODEL` | `text-embedding-3-large` | Modelo de embeddings de OpenAI |
 | `CHROMA_COLLECTION` | `myfirstrag` | Nombre de la colección en Chroma |
 | `CHUNK_SIZE` / `CHUNK_OVERLAP` | `1000` / `200` | Tamaño y solapamiento de los chunks |
 | `TOP_K` | `4` | Chunks devueltos por cada búsqueda |
+
+### 🤖 Cambiar de modelo desde la UI
+
+En la barra lateral, **Modelo LLM** permite elegir entre los modelos de `CHAT_MODEL_OPTIONS` (`config.py`) o escribir cualquier otro `proveedor:modelo` que entienda `init_chat_model` (p. ej. `ollama:llama3.2`). El botón **🔌 Probar conexión** envía un mensaje mínimo al modelo y muestra la latencia o el error (API key inválida, paquete del proveedor no instalado, modelo inexistente...). Cada respuesta del chat indica qué modelo la generó.
+
+Cambiar de LLM **no** requiere reindexar: los embeddings siguen siendo los de OpenAI. Solo necesitas la API key del nuevo proveedor en `.env` (`ANTHROPIC_API_KEY`, `GOOGLE_API_KEY`...).
 
 > ⚠️ Si cambias `EMBEDDING_MODEL`, usa otra colección o vuelve a indexar: los vectores de modelos distintos no son comparables.
 

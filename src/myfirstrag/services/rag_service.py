@@ -8,12 +8,13 @@ Así, si mañana cambiamos Streamlit por FastAPI, este archivo no cambia.
 
 from dataclasses import dataclass, field
 from pathlib import Path
+import time
 
 from langchain_core.documents import Document
 from langchain_core.messages import ToolMessage
 
 from myfirstrag.config import settings
-from myfirstrag.core.agent import build_rag_agent
+from myfirstrag.core.agent import build_rag_agent, ping_chat_model
 from myfirstrag.core.embeddings import get_embeddings
 from myfirstrag.core.loaders import SUPPORTED_EXTENSIONS, load_document
 from myfirstrag.core.splitter import split_documents
@@ -26,12 +27,46 @@ class Answer:
     sources: list[Document] = field(default_factory=list)
 
 
+@dataclass
+class ConnectionCheck:
+    ok: bool
+    model: str
+    message: str
+    latency_s: float = 0.0
+
+
 class RAGService:
     def __init__(self):
         self.db = VectorDatabase(get_embeddings())
-        # El agente recibe el VectorStore de LangChain (no nuestro wrapper):
-        # solo necesita la interfaz estándar `similarity_search`.
-        self.agent = build_rag_agent(self.db.store)
+        # Un agente por modelo de chat, creado bajo demanda y reutilizado.
+        # La base vectorial (y los embeddings) es la misma para todos: cambiar
+        # de LLM no obliga a reindexar nada.
+        self._agents: dict[str, object] = {}
+
+    # ------------------------------------------------------------------ #
+    # Modelos de chat
+    # ------------------------------------------------------------------ #
+    def get_agent(self, model_name: str | None = None):
+        model_name = model_name or settings.chat_model
+        if model_name not in self._agents:
+            # El agente recibe el VectorStore de LangChain (no nuestro wrapper):
+            # solo necesita la interfaz estándar `similarity_search`.
+            self._agents[model_name] = build_rag_agent(self.db.store, model_name)
+        return self._agents[model_name]
+
+    def test_connection(self, model_name: str) -> ConnectionCheck:
+        """Hace una llamada mínima al modelo para verificar que responde."""
+        start = time.perf_counter()
+        try:
+            reply = ping_chat_model(model_name)
+        except Exception as e:
+            return ConnectionCheck(ok=False, model=model_name, message=str(e))
+        return ConnectionCheck(
+            ok=True,
+            model=model_name,
+            message=reply.strip(),
+            latency_s=time.perf_counter() - start,
+        )
 
     # ------------------------------------------------------------------ #
     # Indexación: Load -> Split -> Embed + Store
@@ -68,15 +103,21 @@ class RAGService:
     # ------------------------------------------------------------------ #
     # Consulta: Retrieve + Generate
     # ------------------------------------------------------------------ #
-    def ask(self, question: str, history: list[dict] | None = None) -> Answer:
+    def ask(
+        self,
+        question: str,
+        history: list[dict] | None = None,
+        model_name: str | None = None,
+    ) -> Answer:
         """
-        Envía la pregunta (más el historial del chat) al agente.
+        Envía la pregunta (más el historial del chat) al agente del modelo
+        `model_name` (por defecto, `settings.chat_model`).
 
         `history` es una lista de {"role": "user"|"assistant", "content": str};
         LangChain acepta mensajes en ese formato de diccionario directamente.
         """
         messages = [*(history or []), {"role": "user", "content": question}]
-        result = self.agent.invoke({"messages": messages})
+        result = self.get_agent(model_name).invoke({"messages": messages})
 
         # result["messages"] contiene TODA la conversación, incluidos los
         # mensajes intermedios del bucle agente:

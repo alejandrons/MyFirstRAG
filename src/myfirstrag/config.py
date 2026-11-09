@@ -49,3 +49,22 @@ class Settings:
 
 
 settings = Settings()
+
+# Modelos de chat que se ofrecen en el selector de la UI ("proveedor:modelo").
+# Cada proveedor necesita su paquete de integración (langchain-openai,
+# langchain-anthropic, langchain-google-genai) y su API key en `.env`.
+# Desde la UI también se puede escribir cualquier otro modelo a mano.
+CHAT_MODEL_OPTIONS: list[str] = list(
+    dict.fromkeys(
+        [
+            settings.chat_model,
+            "openai:gpt-5-mini",
+            "openai:gpt-5",
+            "anthropic:claude-haiku-5-5",
+            "anthropic:claude-sonnet-5-5",
+            "anthropic:claude-opus-5-5",
+            "google_genai:gemini-2.5-flash",
+            "google_genai:gemini-2.5-pro",
+        ]
+    )
+)

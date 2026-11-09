@@ -14,12 +14,12 @@ Recordatorio de cómo funciona Streamlit: el script se re-ejecuta COMPLETO de
 arriba a abajo en cada interacción (clic, mensaje...). Por eso:
 - `st.cache_resource` evita recrear objetos caros (cliente de Chroma, agente).
 - `st.session_state` guarda datos que deben persistir entre re-ejecuciones
-  (el historial del chat).
+  (el historial del chat, el modelo LLM elegido).
 """
 
 import streamlit as st
 
-from myfirstrag.config import settings
+from myfirstrag.config import CHAT_MODEL_OPTIONS, settings
 from myfirstrag.core.loaders import SUPPORTED_EXTENSIONS
 from myfirstrag.services import RAGService
 
@@ -33,10 +33,56 @@ def get_service() -> RAGService:
 
 service = get_service()
 
+CUSTOM_MODEL = "✏️ Otro (escribir a mano)..."
+
+if "messages" not in st.session_state:
+    st.session_state.messages = []
+if "chat_model" not in st.session_state:
+    st.session_state.chat_model = settings.chat_model
+# Resultado de la última prueba de conexión (ConnectionCheck) o None.
+if "connection" not in st.session_state:
+    st.session_state.connection = None
+
 # ---------------------------------------------------------------------- #
-# Barra lateral: gestión de documentos
+# Barra lateral: modelo LLM y gestión de documentos
 # ---------------------------------------------------------------------- #
 with st.sidebar:
+    # --- Selección del modelo de chat -----------------------------------
+    st.header("🤖 Modelo LLM")
+    current = st.session_state.chat_model
+    options = [*CHAT_MODEL_OPTIONS, CUSTOM_MODEL]
+    choice = st.selectbox(
+        "Modelo de chat",
+        options,
+        index=options.index(current) if current in options else len(options) - 1,
+        help="Formato `proveedor:modelo`. La API key del proveedor debe estar en `.env`.",
+    )
+    if choice == CUSTOM_MODEL:
+        choice = st.text_input(
+            "Modelo personalizado",
+            value=current if current not in CHAT_MODEL_OPTIONS else "",
+            placeholder="proveedor:modelo (p. ej. ollama:llama3.2)",
+        ).strip()
+
+    if choice and choice != current:
+        st.session_state.chat_model = choice
+        st.session_state.connection = None
+        st.rerun()
+
+    if st.button("🔌 Probar conexión", width="stretch"):
+        with st.spinner(f"Conectando con `{current}`..."):
+            st.session_state.connection = service.test_connection(current)
+
+    check = st.session_state.connection
+    if check is not None and check.model == current:
+        if check.ok:
+            st.success(
+                f"Conexión OK ({check.latency_s:.1f} s). Respuesta: {check.message}"
+            )
+        else:
+            st.error(f"No se pudo conectar: {check.message}")
+
+    st.divider()
     st.header("📂 Documentos")
 
     # --- Agregar documentos ---------------------------------------------
@@ -91,11 +137,9 @@ with st.sidebar:
 # ---------------------------------------------------------------------- #
 st.title("📚 myFirstRAG")
 st.caption(
-    f"Búsqueda semántica con LangChain + ChromaDB · modelo `{settings.chat_model}`"
+    "Búsqueda semántica con LangChain + ChromaDB · "
+    f"modelo `{st.session_state.chat_model}`"
 )
-
-if "messages" not in st.session_state:
-    st.session_state.messages = []
 
 
 def render_sources(sources: list[dict]) -> None:
@@ -111,6 +155,8 @@ def render_sources(sources: list[dict]) -> None:
 for msg in st.session_state.messages:
     with st.chat_message(msg["role"]):
         st.markdown(msg["content"])
+        if msg.get("model"):
+            st.caption(f"Respondido por `{msg['model']}`")
         render_sources(msg.get("sources", []))
 
 if question := st.chat_input("Pregunta algo sobre tus documentos..."):
@@ -123,10 +169,11 @@ if question := st.chat_input("Pregunta algo sobre tus documentos..."):
         for m in st.session_state.messages
     ]
 
+    model_name = st.session_state.chat_model
     with st.chat_message("assistant"):
         with st.spinner("Buscando en los documentos..."):
             try:
-                answer = service.ask(question, history)
+                answer = service.ask(question, history, model_name)
                 text = answer.text
                 sources = [
                     {
@@ -139,9 +186,10 @@ if question := st.chat_input("Pregunta algo sobre tus documentos..."):
             except Exception as e:
                 text, sources = f"⚠️ Error: {e}", []
         st.markdown(text)
+        st.caption(f"Respondido por `{model_name}`")
         render_sources(sources)
 
     st.session_state.messages += [
         {"role": "user", "content": question},
-        {"role": "assistant", "content": text, "sources": sources},
+        {"role": "assistant", "content": text, "sources": sources, "model": model_name},
     ]

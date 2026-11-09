@@ -16,7 +16,8 @@ Ventajas frente a un RAG "de un paso":
 - Es la base para sistemas más complejos (subagentes, `deepagents`...).
 
 Piezas de LangChain usadas aquí:
-- `init_chat_model`: crea un chat model a partir de "proveedor:modelo".
+- `init_chat_model`: crea un chat model a partir de "proveedor:modelo". Así
+  cambiar de LLM (OpenAI, Anthropic, Google...) es solo cambiar un string.
 - `@tool`: convierte una función Python en una herramienta que el LLM
   puede invocar. El docstring y los type hints forman el esquema que ve el LLM.
 - `create_agent`: construye el bucle agente (sobre LangGraph) LLM <-> tools.
@@ -26,6 +27,7 @@ from langchain.agents import create_agent
 from langchain.chat_models import init_chat_model
 from langchain.tools import tool
 from langchain_core.documents import Document
+from langchain_core.language_models import BaseChatModel
 from langchain_core.vectorstores import VectorStore
 
 from myfirstrag.config import settings
@@ -75,9 +77,25 @@ def build_retrieval_tool(vector_store: VectorStore):
     return search_documents
 
 
-def build_rag_agent(vector_store: VectorStore):
+def build_chat_model(model_name: str | None = None) -> BaseChatModel:
+    """Crea el chat model a partir de "proveedor:modelo" (p. ej. "openai:gpt-5-mini")."""
+    return init_chat_model(model_name or settings.chat_model)
+
+
+def ping_chat_model(model_name: str) -> str:
+    """
+    Envía un mensaje mínimo al modelo para comprobar que la conexión funciona
+    (paquete del proveedor instalado, API key válida, nombre de modelo correcto).
+    Devuelve el texto de la respuesta; si algo falla, lanza la excepción.
+    """
+    model = build_chat_model(model_name)
+    reply = model.invoke("Responde únicamente con la palabra: OK")
+    return reply.text
+
+
+def build_rag_agent(vector_store: VectorStore, model_name: str | None = None):
     """Ensambla LLM + herramienta + prompt de sistema en un agente ejecutable."""
-    model = init_chat_model(settings.chat_model)
+    model = build_chat_model(model_name)
     return create_agent(
         model=model,
         tools=[build_retrieval_tool(vector_store)],
